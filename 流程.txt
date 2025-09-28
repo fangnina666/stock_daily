@@ -1,0 +1,62 @@
+整個流程分為四個主要步驟：
+
+1.準備您的專案檔案：建立一個 requirements.txt 檔案來管理程式的依賴套件。
+
+2.設定 GitHub 儲存庫 (Repository)：將您的程式碼上傳到 GitHub。
+
+3.撰寫 Workflow 工作流程檔案：這是 GitHub Actions 的核心，我們將在此設定排程與執行步驟。
+
+4.處理產出的 Excel 檔案：設定將每日產出的 Excel 檔儲存為「產出物 (Artifact)」，方便您下載。
+
+==========
+步驟一：準備您的專案檔案
+在您的電腦上，請確保您的專案資料夾內包含以下兩個檔案：
+
+1. 您的 Python 腳本 (fubon.py)
+這就是我們剛剛完成的最終版程式碼。
+
+2. 依賴套件清單 (requirements.txt)
+在您的專案資料夾中，手動新增一個名為 requirements.txt 的純文字檔案。這個檔案告訴 GitHub Actions 需要安裝哪些 Python 套件。
+
+==========
+
+步驟二：設定 GitHub 儲存庫
+登入您的 GitHub 帳號。
+
+建立一個新的儲存庫 (New Repository)，可以是公開 (Public) 或私人 (Private) 的。
+
+將您本機資料夾中的 fubon.py 和 requirements.txt 這兩個檔案，上傳到這個新的儲存庫中。
+
+==========
+
+步驟三：建立 GitHub Actions Workflow 檔案
+這是最關鍵的一步。我們需要告訴 GitHub 何時 (when) 與如何 (how) 執行您的程式。
+
+在您的 GitHub 儲存庫頁面，點擊上方的 Actions 頁籤。
+
+點擊 "set up a workflow yourself" (或類似的按鈕) 來建立一個新的工作流程檔案。
+
+GitHub 會為您開啟一個線上編輯器，檔案路徑會是 .github/workflows/main.yml。您可以將檔名 main.yml 改為更有意義的名稱，例如 scraper.yml，並使用壓縮檔的內容
+
+
+完成貼上後，點擊右上角的 "Commit changes" 按鈕，將這個 workflow 檔案儲存到您的儲存庫中。
+
+==========
+
+步驟四：檢查執行與下載產出物
+如何檢查？
+
+自動執行：到了台灣時間晚上 6 點，您可以進入儲存庫的 Actions 頁面，應該會看到一個新的工作流程正在執行或已經執行完畢。
+
+手動測試：您可以隨時到 Actions 頁面，點擊左側的 "Daily Stock Scraper"，然後在右側會看到一個 "Run workflow" 的按鈕，點擊它即可立即執行一次，方便您確認設定是否正確。
+
+如何下載 Excel 檔？
+當工作流程成功執行完畢後：
+
+點進該次執行的紀錄。
+
+在執行紀錄的 Summary 頁面下方，您會看到一個名為 "Artifacts" 的區塊。
+
+您設定的產出物 "broker-data-report" 就會在那裡，點擊它即可下載一個 zip 壓縮檔，解壓縮後就是您每日的 Excel 報告。
+
+至此，您已經成功建立了一個全自動、每日執行的雲端爬蟲！

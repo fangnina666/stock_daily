@@ -1,0 +1,53 @@
+# .github/workflows/scraper.yml
+
+# 工作流程的名稱
+name: Daily Stock Data Scraper
+
+# 觸發工作流程的事件
+on:
+  # 允許您在 GitHub Actions 頁面手動觸發此工作流程 (方便測試)
+  workflow_dispatch:
+
+  # 排程觸發
+  schedule:
+    # "0 9 * * *" 代表在 UTC 時間的每天早上 9:00 執行
+    # 換算成您的時區 (CST, UTC+8)，就是每天下午 5:00 (17:00)
+    - cron: '0 9 * * 1-5'
+
+# 定義工作流程中的任務
+jobs:
+  scrape-data:
+    # 指定任務運行的虛擬環境
+    runs-on: ubuntu-latest
+
+    # 任務中的步驟
+    steps:
+      # 步驟 1: 將您的程式碼從 GitHub repo 下載到虛擬環境中
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 步驟 2: 設定 Python 環境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7' # 您可以指定需要的 Python 版本
+
+      # 步驟 3: 安裝 Python 依賴函式庫
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 步驟 4: 執行您的 Python 爬蟲腳本
+      # 將 'fubon.py' 換成您 Python 檔案的實際名稱
+      - name: Run scraper
+        run: python fubon.py
+
+      # 步驟 5: 上傳產生的 Excel 檔案
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # 上傳檔案的名稱 (在 GitHub 上顯示的名稱)
+          name: broker-data-report
+          # 要上傳的檔案路徑，使用萬用字元 * 來匹配動態生成的檔名
+          path: 券商分點買賣超明細_*.xlsx
