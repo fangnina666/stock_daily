@@ -2,7 +2,9 @@
 
 # 工作流程的名稱
 name: Daily Stock Data Scraper
-
+permissions:
+  contents: write
+  
 # 觸發工作流程的事件
 on:
   workflow_dispatch:
