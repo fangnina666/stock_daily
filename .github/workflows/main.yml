@@ -5,8 +5,16 @@ name: Daily Stock Data Scraper
 
 # 觸發工作流程的事件
 on:
-  # 允許您在 GitHub Actions 頁面手動觸發此工作流程 (方便測試)
   workflow_dispatch:
+    inputs:
+      stock_id:
+        description: "指定股票代號 (例如 2330)，不填則抓全部"
+        required: false
+        default: ""
+      outfile_prefix:
+        description: "檔名的前綴 (例如 TSMC_report)，不填則用預設"
+        required: false
+        default: ""
 
   # 排程觸發
   schedule:
@@ -25,6 +33,8 @@ jobs:
       # 步驟 1: 將您的程式碼從 GitHub repo 下載到虛擬環境中
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # 步驟 2: 設定 Python 環境
       - name: Set up Python
@@ -41,7 +51,36 @@ jobs:
       # 步驟 4: 執行您的 Python 爬蟲腳本
       # 將 'fubon.py' 換成您 Python 檔案的實際名稱
       - name: Run scraper
-        run: python fubon.py
+        run: |
+          OUTFILE=""
+          if [ "${{ github.event.inputs.outfile_prefix }}" != "" ]; then
+            OUTFILE="reports/${{ github.event.inputs.outfile_prefix }}.xlsx"
+          fi
+
+          if [ "${{ github.event.inputs.stock_id }}" != "" ]; then
+            echo "📌 只抓股票 ${{ github.event.inputs.stock_id }}"
+            if [ "$OUTFILE" != "" ]; then
+              python fubon.py --stock ${{ github.event.inputs.stock_id }} --outfile "$OUTFILE"
+            else
+              python fubon.py --stock ${{ github.event.inputs.stock_id }}
+            fi
+          else
+            echo "📌 抓全部股票"
+            if [ "$OUTFILE" != "" ]; then
+              python fubon.py --outfile "$OUTFILE"
+            else
+              python fubon.py
+            fi
+          fi
+      - name: Commit and Push report
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 步驟 5: 上傳產生的 Excel 檔案
       - name: Upload artifact
@@ -50,4 +89,4 @@ jobs:
           # 上傳檔案的名稱 (在 GitHub 上顯示的名稱)
           name: broker-data-report
           # 要上傳的檔案路徑，使用萬用字元 * 來匹配動態生成的檔名
-          path: 券商分點買賣超明細_*.xlsx
+          path: reports/*.xlsx
