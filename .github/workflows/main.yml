@@ -81,7 +81,8 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add reports/
           git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
-          git push
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          git push origin HEAD:${{ github.ref }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
