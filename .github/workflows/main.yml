@@ -11,6 +11,10 @@ on:
         description: "指定股票代號 (例如 2330)，不填則抓全部"
         required: false
         default: ""
+      branch_id:
+        description: "指定分點代號 (例如 9814)，不填則抓全部分點"
+        required: false
+        default: ""
       outfile_prefix:
         description: "檔名的前綴 (例如 TSMC_report)，不填則用預設"
         required: false
@@ -57,21 +61,20 @@ jobs:
             OUTFILE="reports/${{ github.event.inputs.outfile_prefix }}.xlsx"
           fi
 
+          CMD="python fubon.py"
           if [ "${{ github.event.inputs.stock_id }}" != "" ]; then
-            echo "📌 只抓股票 ${{ github.event.inputs.stock_id }}"
-            if [ "$OUTFILE" != "" ]; then
-              python fubon.py --stock ${{ github.event.inputs.stock_id }} --outfile "$OUTFILE"
-            else
-              python fubon.py --stock ${{ github.event.inputs.stock_id }}
-            fi
-          else
-            echo "📌 抓全部股票"
-            if [ "$OUTFILE" != "" ]; then
-              python fubon.py --outfile "$OUTFILE"
-            else
-              python fubon.py
-            fi
+            CMD="$CMD --stock ${{ github.event.inputs.stock_id }}"
           fi
+          if [ "${{ github.event.inputs.branch_id }}" != "" ]; then
+            CMD="$CMD --branch ${{ github.event.inputs.branch_id }}"
+          fi
+          if [ "$OUTFILE" != "" ]; then
+            CMD="$CMD --outfile $OUTFILE"
+          fi
+
+          echo "執行命令: $CMD"
+          eval $CMD
+          
       - name: Commit and Push report
         run: |
           git config --global user.name "github-actions[bot]"
