@@ -25,6 +25,9 @@ jobs:
       # 步驟 1: 將您的程式碼從 GitHub repo 下載到虛擬環境中
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false   # 避免用內建 token 污染
+
 
       # 步驟 2: 設定 Python 環境
       - name: Set up Python
@@ -42,12 +45,21 @@ jobs:
       # 將 'fubon.py' 換成您 Python 檔案的實際名稱
       - name: Run scraper
         run: python fubon.py
-
+        
+            # === 把檔案 commit & push 回 repo ===
+      - name: Commit and Push report
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/
+          git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
       # 步驟 5: 上傳產生的 Excel 檔案
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          # 上傳檔案的名稱 (在 GitHub 上顯示的名稱)
           name: broker-data-report
-          # 要上傳的檔案路徑，使用萬用字元 * 來匹配動態生成的檔名
-          path: 券商分點買賣超明細_*.xlsx
+          path: reports/*.xlsx
