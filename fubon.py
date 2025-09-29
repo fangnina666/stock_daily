@@ -7,6 +7,12 @@ import random
 from typing import List, Dict, Optional, Tuple
 import urllib3
 import os
+from datetime import datetime
+from pathlib import Path
+
+# 建立 reports 資料夾（如果不存在的話）
+report_dir = Path("reports")
+report_dir.mkdir(exist_ok=True)
 
 # --- 這裡的輔助函數與前一版相同，保持不變 ---
 USER_AGENTS = [
@@ -145,7 +151,7 @@ def main():
         # 如果一直沒抓到日期，給一個 fallback 檔名
         report_date = time.strftime("%Y%m%d")
     
-    output_filename = f"券商分點買賣超明細_{report_date}.xlsx"
+    output_filename = report_dir /f"券商分點買賣超明細_{report_date}.xlsx"
     
     print(f"\n爬取完成，總共收集到 {len(all_records)} 筆紀錄，準備寫入檔案: {output_filename}")
     df = pd.DataFrame(all_records)
