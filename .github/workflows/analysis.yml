@@ -1,0 +1,52 @@
+name: Daily Chip Analysis
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:  # 手動觸發
+  schedule:
+    - cron: '30 14 * * 1-5'   # 在 scraper 後半小時執行 (UTC 9:30 → 台灣 17:30)
+
+jobs:
+  analyze-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.7'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run chip analysis
+        run: |
+          echo "開始分析最近兩日的分點籌碼..."
+          python chip_analysis.py
+
+      - name: Commit and Push analysis
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add reports/abnormal_report_*.md reports/llm_prompt_*.txt
+          git commit -m "Add daily chip analysis $(date +'%Y-%m-%d') [skip ci]" || echo "No analysis changes to commit"
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
+          git push origin HEAD:${{ github.ref }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chip-analysis-report
+          path: |
+            reports/abnormal_report_*.md
+            reports/llm_prompt_*.txt
