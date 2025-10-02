@@ -56,6 +56,11 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
     df1 = pd.read_excel(file_day1, dtype={"股票代號": str})
     df2 = pd.read_excel(file_day2, dtype={"股票代號": str})
 
+
+    df1 = df1.drop_duplicates(subset=["資料日期","股票代號", "股票名稱", "子券商名稱", "買入張數", "賣出張數"])
+    df2 = df2.drop_duplicates(subset=["資料日期","股票代號", "股票名稱", "子券商名稱", "買入張數", "賣出張數"])
+
+
     # 計算淨買超
     df1["淨買超"] = df1["買入張數"] - df1["賣出張數"]
     df2["淨買超"] = df2["買入張數"] - df2["賣出張數"]
