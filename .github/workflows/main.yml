@@ -28,6 +28,11 @@ on:
     # 換算成您的時區 (CST, UTC+8)，就是每天下午 5:00 (17:00)
     - cron: '0 9 * * 1-5'
 
+# 防止同時運行多個實例
+concurrency:
+  group: stock-scraper-${{ github.ref }}
+  cancel-in-progress: false
+
 # 定義工作流程中的任務
 jobs:
   scrape-data:
@@ -40,7 +45,8 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       # 步驟 2: 設定 Python 環境
       - name: Set up Python
@@ -81,10 +87,41 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 先拉取最新的更改
+          git pull origin ${{ github.ref_name }} --rebase || true
+          
           git add reports/
-          git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}
-          git push origin HEAD:${{ github.ref }}
+          
+          # 檢查是否有更改
+          if git diff --staged --quiet; then
+            echo "沒有變更需要提交"
+            exit 0
+          fi
+          
+          git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]"
+          
+          # 使用重試機制推送
+          max_retries=3
+          retry_count=0
+          
+          while [ $retry_count -lt $max_retries ]; do
+            if git push origin HEAD:${{ github.ref_name }}; then
+              echo "推送成功"
+              break
+            else
+              retry_count=$((retry_count + 1))
+              echo "推送失敗，嘗試第 $retry_count 次重試"
+              
+              if [ $retry_count -lt $max_retries ]; then
+                git pull origin ${{ github.ref_name }} --rebase
+                sleep 5
+              else
+                echo "達到最大重試次數，推送失敗"
+                exit 1
+              fi
+            fi
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
