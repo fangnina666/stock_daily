@@ -240,6 +240,8 @@ if __name__ == "__main__":
     markdown_table = df_to_markdown_table(abnormal_df, day1_str, day2_str)
     with open(f"reports/abnormal_table_{day2_str}.md", "w", encoding="utf-8") as f:
         f.write(markdown_table)
+        
+    abnormal_df.to_excel(f"reports/abnormal_table_{day2_str}.xlsx", index=False)
     
     print(markdown_table)   # 在 console 印出來
 
