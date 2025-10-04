@@ -43,6 +43,15 @@ def get_latest_two_files(folder="reports"):
 # ============================================================
 # 主分析流程
 # ============================================================
+def df_to_markdown_table(df, day1_label, day2_label):
+    table = "| 股票代號 | 股票名稱 | 券商名稱 | {} 淨買超 | {} 淨買超 | Δ 淨買超 | 是否顯著異常 |\n".format(day1_label, day2_label)
+    table += "|----------|----------|----------|-----------|-----------|-----------|--------------|\n"
+    for _, row in df.iterrows():
+        abnormal_flag = "✅" if row["異常"] else "⚠️"
+        table += f"| {row['股票代號']} | {row['股票名稱']} | {row['子券商名稱']} | {int(row[f'淨買超_{day1_label}'])} | {int(row[f'淨買超_{day2_label}'])} | {int(row['Δ淨買超'])} | {abnormal_flag} |\n"
+    return table
+
+
 def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
                               day1_label="Day1", day2_label="Day2", 
                               top_n=3, concentration_threshold=0.6,
@@ -227,3 +236,10 @@ if __name__ == "__main__":
        '''
 
     print("已生成報告 abnormal_report.md 與 LLM Prompt.txt，可直接丟給 ChatGPT/Gemini")
+
+    markdown_table = df_to_markdown_table(abnormal_df, day1_str, day2_str)
+    with open(f"reports/abnormal_table_{day2_str}.md", "w", encoding="utf-8") as f:
+        f.write(markdown_table)
+    
+    print(markdown_table)   # 在 console 印出來
+
