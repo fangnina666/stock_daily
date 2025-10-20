@@ -56,19 +56,19 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
                               day1_label="Day1", day2_label="Day2", 
                               top_n=3, concentration_threshold=0.6,
                               min_delta=50, min_volume=200, min_broker_volume=50,
-                              output_path=None, output_format="md"):
+                              output_path=None, output_format="md",
+                              return_concentrated_only=True):
     """
     分析兩日籌碼流向 + 當日集中度 + 產業標籤 + 報告輸出
+    - return_concentrated_only=True 時，回傳的 abnormal_df 僅保留「Day2 高度集中(占比>=threshold)」的券商列。
     """
 
     # === 載入兩日檔案 ===
     df1 = pd.read_excel(file_day1, dtype={"股票代號": str})
     df2 = pd.read_excel(file_day2, dtype={"股票代號": str})
 
-
     df1 = df1.drop_duplicates(subset=["資料日期","股票代號", "股票名稱", "子券商名稱", "買入張數", "賣出張數"])
     df2 = df2.drop_duplicates(subset=["資料日期","股票代號", "股票名稱", "子券商名稱", "買入張數", "賣出張數"])
-
 
     # 計算淨買超
     df1["淨買超"] = df1["買入張數"] - df1["賣出張數"]
@@ -84,7 +84,6 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
 
     # Δ淨買超
     merged["Δ淨買超"] = merged[f"淨買超_{day2_label}"] - merged[f"淨買超_{day1_label}"]
-    
 
     # 計算 Day2 平均 & 標準差
     stats_day2 = merged.groupby("股票代號")[f"淨買超_{day2_label}"].agg(["mean", "std"]).reset_index()
@@ -104,23 +103,37 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
     agg_day2 = df2.groupby(["股票代號", "股票名稱", "子券商名稱"])["淨買超"].sum().reset_index()
     # 過濾掉 ETF & 小於 min_broker_volume 的券商
     agg_day2 = agg_day2[
-          (~agg_day2["股票代號"].astype(str).str.startswith("00")) &
-          (agg_day2["淨買超"].abs() >= min_broker_volume)   # 新增過濾
-      ]
+        (~agg_day2["股票代號"].astype(str).str.startswith("00")) &
+        (agg_day2["淨買超"].abs() >= min_broker_volume)
+    ]
     stock_total = agg_day2.groupby("股票代號")["淨買超"].sum().reset_index().rename(columns={"淨買超": "總淨買超"})
     merged_day2 = agg_day2.merge(stock_total, on="股票代號", how="left")
     # 過濾掉股票總量太小的
     merged_day2 = merged_day2[merged_day2["總淨買超"].abs() >= min_volume]
     merged_day2["占比"] = merged_day2["淨買超"] / merged_day2["總淨買超"]
 
-    flow_df = merged_day2.sort_values(["股票代號", "淨買超"], ascending=[True, False]) \
-                         .groupby("股票代號").head(top_n)
+    flow_df = (merged_day2
+               .sort_values(["股票代號", "淨買超"], ascending=[True, False])
+               .groupby("股票代號").head(top_n))
+
+    # === 濃縮：只保留 Day2 高度集中的券商（g2 的聯集）===
+    g2_all = flow_df[flow_df["占比"] >= concentration_threshold][
+        ["股票代號","股票名稱","子券商名稱"]
+    ].drop_duplicates()
+
+    abnormal_df_concentrated = abnormal_df.merge(
+        g2_all, on=["股票代號","股票名稱","子券商名稱"], how="inner"
+    )
 
     # === 生成 Markdown 報告 ===
     report_lines = [f"# {day2_label} 異常籌碼分析報告", ""]
     industry_summary = []
 
-    for stock, g in abnormal_df.groupby("股票代號"):
+    # 注意：以下報告段落中的 g2 改為使用參數 concentration_threshold
+    # 並且若 return_concentrated_only=True，可只以 abnormal_df_concentrated 作為迭代來源
+    source_abn = abnormal_df_concentrated if return_concentrated_only else abnormal_df
+
+    for stock, g in source_abn.groupby("股票代號"):
         stock_name = g["股票名稱"].iloc[0]
         industry = industry_map.get(str(stock), "未分類") if industry_map else "未分類"
         industry_summary.append(industry)
@@ -133,15 +146,15 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
                 f"{day2_label} 淨買超 {int(row[f'淨買超_{day2_label}'])} 張，Δ {int(row['Δ淨買超'])} 張"
             )
 
-        report_lines.append("### 當日籌碼主力 (僅顯示占比 > 60%)")
-        g2 = flow_df[(flow_df["股票代號"] == stock) & (flow_df["占比"] > 0.6)]
+        report_lines.append(f"### 當日籌碼主力 (僅顯示占比 ≥ {concentration_threshold:.0%})")
+        g2 = flow_df[(flow_df["股票代號"] == stock) & (flow_df["占比"] >= concentration_threshold)]
         for _, row in g2.iterrows():
             report_lines.append(f"- {row['子券商名稱']}: {int(row['淨買超'])} 張，占比 {row['占比']:.1%}")
 
         if not g2.empty:
             report_lines.append("👉 籌碼高度集中，顯示主力券商鎖碼\n")
         else:
-            report_lines.append("👉 無單一券商占比超過 60%，籌碼未明顯集中\n")
+            report_lines.append("👉 無單一券商占比達門檻，籌碼未明顯集中\n")
 
     # === 總結產業 ===
     if industry_summary:
@@ -160,7 +173,9 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(result_text)
 
-    return result_text, abnormal_df, flow_df
+    # 依參數決定回傳哪一個 abnormal_df
+    abnormal_out = abnormal_df_concentrated if return_concentrated_only else abnormal_df
+    return result_text, abnormal_out, flow_df
 
 # ============================================================
 # 產生 LLM Prompt
