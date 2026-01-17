@@ -57,7 +57,7 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
                               top_n=3, concentration_threshold=0.6,
                               min_delta=50, min_volume=200, min_broker_volume=50,
                               output_path=None, output_format="md",
-                              return_concentrated_only=True):
+                              return_concentrated_only=False):
     """
     分析兩日籌碼流向 + 當日集中度 + 產業標籤 + 報告輸出
     - return_concentrated_only=True 時，回傳的 abnormal_df 僅保留「Day2 高度集中(占比>=threshold)」的券商列。
