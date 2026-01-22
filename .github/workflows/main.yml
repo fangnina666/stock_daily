@@ -84,46 +84,72 @@ jobs:
           eval $CMD
           
       - name: Commit and Push report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 先拉取最新的更改
-          git pull origin ${{ github.ref_name }} --rebase || true
-          
+
+          # ✅ 明確設定 remote 用 token（更穩）
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # 先抓最新
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }} || git rebase --abort
+
+          # ✅ 檔案大小資訊（幫你判斷是否 xlsx 太大）
+          python - <<'PY'
+          import os, glob
+          files = glob.glob("reports/**/*", recursive=True)
+          files = [f for f in files if os.path.isfile(f)]
+          files.sort(key=lambda f: os.path.getsize(f), reverse=True)
+          print("Top 5 largest files in reports/:")
+          for f in files[:5]:
+              print(f"{os.path.getsize(f)/1024/1024:.2f} MB\t{f}")
+          PY
+
+          # ✅ 超大檔案保護（可調）
+          python - <<'PY'
+          import os, glob, sys
+          LIMIT_MB=80
+          for f in glob.glob("reports/**/*.xlsx", recursive=True):
+              if os.path.getsize(f) > LIMIT_MB*1024*1024:
+                  print(f"[ERROR] File too large (> {LIMIT_MB}MB): {f}")
+                  sys.exit(1)
+          print("[OK] File size within limit")
+          PY
+
           git add reports/
-          
-          # 檢查是否有更改
+
           if git diff --staged --quiet; then
             echo "沒有變更需要提交"
             exit 0
           fi
-          
+
           git commit -m "Add daily report $(date +'%Y-%m-%d') [skip ci]"
-          
-          # 使用重試機制推送
-          max_retries=3
+
+          max_retries=6
           retry_count=0
-          
+
           while [ $retry_count -lt $max_retries ]; do
             if git push origin HEAD:${{ github.ref_name }}; then
               echo "推送成功"
-              break
-            else
-              retry_count=$((retry_count + 1))
-              echo "推送失敗，嘗試第 $retry_count 次重試"
-              
-              if [ $retry_count -lt $max_retries ]; then
-                git pull origin ${{ github.ref_name }} --rebase
-                sleep 5
-              else
-                echo "達到最大重試次數，推送失敗"
-                exit 1
-              fi
+              exit 0
             fi
+
+            retry_count=$((retry_count + 1))
+            backoff=$((2 ** retry_count))
+            echo "推送失敗（可能是 GitHub 端 500 或 pack 太大），第 $retry_count 次重試，等待 ${backoff}s"
+
+            git fetch origin ${{ github.ref_name }}
+            git rebase origin/${{ github.ref_name }} || git rebase --abort
+            sleep $backoff
           done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          echo "達到最大重試次數，推送失敗"
+          exit 1
 
       # 步驟 5: 上傳產生的 Excel 檔案
       - name: Upload artifact
