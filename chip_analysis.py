@@ -2,6 +2,10 @@ import pandas as pd
 import os
 import re
 import pandas as pd
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+REPORT_DIR = os.path.join(BASE_DIR, "reports")
 
 def load_industry_map(filepath="industry_map.csv"):
     """
@@ -213,7 +217,7 @@ def generate_llm_prompt(day1_label, day2_label, abnormal_df):
 # ============================================================
 if __name__ == "__main__":
     # 找最近兩日檔案
-    (day1_str, file_day1), (day2_str, file_day2) = get_latest_two_files("stock_daily/reports")
+    (day1_str, file_day1), (day2_str, file_day2) = get_latest_two_files("REPORT_DIR")
 
     print(f"分析最近兩日檔案：{day1_str}, {day2_str}")
 
