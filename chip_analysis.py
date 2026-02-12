@@ -235,12 +235,33 @@ def generate_llm_prompt(day1_label, day2_label, abnormal_df):
 # ============================================================
 if __name__ == "__main__":
     # 找最近兩日檔案
+    # Debug：你到底在哪裡跑？
+    print("BASE_DIR =", BASE_DIR)
+    print("CWD     =", os.getcwd())
+    print("REPORT_DIR =", REPORT_DIR)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+    
+     # 找最近兩日檔案
     (day1_str, file_day1), (day2_str, file_day2) = get_latest_two_files(REPORT_DIR)
-
     print(f"分析最近兩日檔案：{day1_str}, {day2_str}")
+    print("file_day1 =", file_day1)
+    print("file_day2 =", file_day2)
 
-    # 載入產業對照表
-    industry_map = load_industry_map("industry_map.csv")
+    # 載入產業對照表（建議也用絕對路徑）
+    industry_map_path = os.path.join(BASE_DIR, "industry_map.csv")
+    print("industry_map_path =", industry_map_path)
+    industry_map = load_industry_map(industry_map_path)
+
+    # ✅ 統一輸出到 REPORT_DIR
+    report_path = os.path.join(REPORT_DIR, f"abnormal_report_{day2_str}.md")
+    prompt_path = os.path.join(REPORT_DIR, f"llm_prompt_{day2_str}.txt")
+    table_md_path = os.path.join(REPORT_DIR, f"abnormal_table_{day2_str}.md")
+    table_xlsx_path = os.path.join(REPORT_DIR, f"abnormal_table_{day2_str}.xlsx")
+
+    print("will write report_path =", report_path)
+    print("will write prompt_path =", prompt_path)
+    print("will write table_md_path =", table_md_path)
+    print("will write table_xlsx_path =", table_xlsx_path)
 
     # 執行分析
     report, abnormal_df, flow_df = analyze_two_day_chip_flow(
@@ -253,12 +274,23 @@ if __name__ == "__main__":
         min_delta=50, min_volume=200, min_broker_volume=50,
         output_path=f"reports/abnormal_report_{day2_str}.md"
     )
+    
+    print("report length =", len(report))
+    print("abnormal rows =", len(abnormal_df))
+    print("flow rows =", len(flow_df))
 
     print(report)
     # 產生 prompt.txt
     
         # 僅取前 5 檔異常股票
     abnormal_top = abnormal_df.groupby("股票代號").head(1).head(20)
+    
+    print("abnormal_top stocks =", abnormal_top["股票代號"].nunique())
+    
+    prompt_text = generate_llm_prompt(day1_str, day2_str, abnormal_top)
+    with open(prompt_path, "w", encoding="utf-8") as f:
+        f.write(prompt_text)
+
     flow_top = flow_df[flow_df["股票代號"].isin(abnormal_top["股票代號"])]
     
     # 產生精簡版 Prompt
@@ -281,4 +313,8 @@ if __name__ == "__main__":
     abnormal_df.to_excel(f"reports/abnormal_table_{day2_str}.xlsx", index=False)
     
     print(markdown_table)   # 在 console 印出來
+# ✅ 最後確認檔案真的存在
+    for p in [report_path, prompt_path, table_md_path, table_xlsx_path]:
+        print("exists?", os.path.exists(p), "|", p, "| size =", os.path.getsize(p) if os.path.exists(p) else None)
 
+    print("DONE")
