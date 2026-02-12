@@ -103,22 +103,40 @@ def analyze_two_day_chip_flow(file_day1, file_day2, industry_map=None,
     # 過濾 ETF (00 開頭)
     abnormal_df = merged[(merged["異常"]) & (~merged["股票代號"].astype(str).str.startswith("00"))]
 
-    # === Day2 籌碼結構 ===
+    # === Day2 籌碼結構（改：用「正向買方占比」避免正負互抵造成假高占比）===
     agg_day2 = df2.groupby(["股票代號", "股票名稱", "子券商名稱"])["淨買超"].sum().reset_index()
+    
     # 過濾掉 ETF & 小於 min_broker_volume 的券商
     agg_day2 = agg_day2[
         (~agg_day2["股票代號"].astype(str).str.startswith("00")) &
         (agg_day2["淨買超"].abs() >= min_broker_volume)
-    ]
-    stock_total = agg_day2.groupby("股票代號")["淨買超"].sum().reset_index().rename(columns={"淨買超": "總淨買超"})
-    merged_day2 = agg_day2.merge(stock_total, on="股票代號", how="left")
-    # 過濾掉股票總量太小的
-    merged_day2 = merged_day2[merged_day2["總淨買超"].abs() >= min_volume]
-    merged_day2["占比"] = merged_day2["淨買超"] / merged_day2["總淨買超"]
-
-    flow_df = (merged_day2
-               .sort_values(["股票代號", "淨買超"], ascending=[True, False])
-               .groupby("股票代號").head(top_n))
+    ].copy()
+    
+    # ✅ 只看「正向淨買超」做占比（把賣超視為 0，避免總淨買超=小數字被放大）
+    agg_day2["正向淨買超"] = agg_day2["淨買超"].clip(lower=0)
+    
+    # 分母：該股票 Day2 所有券商「正向淨買超」加總（買方總量）
+    stock_buy_total = (
+        agg_day2.groupby("股票代號")["正向淨買超"]
+                .sum()
+                .reset_index()
+                .rename(columns={"正向淨買超": "買方總量"})
+    )
+    
+    merged_day2 = agg_day2.merge(stock_buy_total, on="股票代號", how="left")
+    
+    # ✅ 過濾：買方總量太小的股票不看（用 min_volume 當門檻）
+    merged_day2 = merged_day2[merged_day2["買方總量"] >= min_volume].copy()
+    
+    # 占比：該券商的正向淨買超 / 買方總量
+    merged_day2["占比"] = merged_day2["正向淨買超"] / merged_day2["買方總量"]
+    
+    # top_n 主力券商：用「正向淨買超」排序更直觀
+    flow_df = (
+        merged_day2.sort_values(["股票代號", "正向淨買超"], ascending=[True, False])
+                  .groupby("股票代號")
+                  .head(top_n)
+    )
 
     # === 濃縮：只保留 Day2 高度集中的券商（g2 的聯集）===
     g2_all = flow_df[flow_df["占比"] >= concentration_threshold][
