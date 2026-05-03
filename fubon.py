@@ -97,7 +97,64 @@ def parse_raw_broker_string(raw_string: str) -> List[Dict]:
                 })
             except ValueError: continue
     return broker_list
+def remove_duplicate_parent_summary(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    移除母券商總公司重複資料。
 
+    例如：
+    永豐金 / 永豐金
+    永豐金 / 永豐金證券
+
+    如果同一資料日期、同一股票、同一母券商、買入張數、賣出張數都相同，
+    且子券商名稱看起來是母券商本身，就只保留一筆。
+    """
+
+    before = len(df)
+    df = df.copy()
+
+    # 將「永豐金證券」視為「永豐金」
+    df["_子券商簡名"] = (
+        df["子券商名稱"]
+        .astype(str)
+        .str.replace("證券$", "", regex=True)
+        .str.strip()
+    )
+
+    df["_母券商簡名"] = (
+        df["母券商名稱"]
+        .astype(str)
+        .str.replace("證券$", "", regex=True)
+        .str.strip()
+    )
+
+    # 只針對「子券商名稱 = 母券商名稱」或「子券商名稱 = 母券商名稱 + 證券」的資料去重
+    parent_like_mask = df["_子券商簡名"] == df["_母券商簡名"]
+
+    key_cols = [
+        "資料日期",
+        "股票代號",
+        "母券商代號",
+        "母券商名稱",
+        "買入張數",
+        "賣出張數",
+    ]
+
+    parent_like_df = df[parent_like_mask].drop_duplicates(
+        subset=key_cols,
+        keep="first"
+    )
+
+    branch_df = df[~parent_like_mask]
+
+    df = pd.concat([parent_like_df, branch_df], ignore_index=True)
+
+    df = df.drop(columns=["_子券商簡名", "_母券商簡名"])
+
+    after = len(df)
+    print(f"🧹 母券商總公司重複資料剔除：{before} -> {after}，移除 {before - after} 筆")
+
+    return df
+    
 def main():
         # === 新增 CLI 參數 ===
     parser = argparse.ArgumentParser()
@@ -186,6 +243,9 @@ def main():
     
     print(f"\n爬取完成，總共收集到 {len(all_records)} 筆紀錄，準備寫入檔案: {output_filename}")
     df = pd.DataFrame(all_records)
+    # === 移除母券商總公司重複資料 ===
+    df = remove_duplicate_parent_summary(df)
+    
     final_columns = ['資料日期', '股票代號', '股票名稱', '母券商代號', '母券商名稱', '子券商名稱', '買入張數', '賣出張數']
     df = df[final_columns]
     
