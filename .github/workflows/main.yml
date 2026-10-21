@@ -52,7 +52,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13.7' # 您可以指定需要的 Python 版本
+          python-version: '3.13' # 您可以指定需要的 Python 版本
 
       # 步驟 3: 安裝 Python 依賴函式庫
       - name: Install dependencies
